@@ -1,0 +1,21 @@
+services:
+  mariadb:
+    container_name: "mariadb"
+    environment:
+      - "MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD:?}"
+      - "MARIADB_PASSWORD=${MARIADB_PASSWORD:?}"
+      - "MARIADB_USER=${MARIADB_USER:-laravel}"
+      - "MARIADB_DATABASE=${MARIADB_DATABASE:-laravel}"
+    healthcheck:
+      interval: 10s
+      retries: 3
+      start_period: 10s
+      test: ["CMD", "healthcheck.sh", "--connect"]
+      timeout: 5s
+    image: "mariadb:11"
+    ports:
+      - "${MARIADB_PORT:-3306}:3306"
+    volumes:
+      - "mariadb-data:/var/lib/mysql"
+volumes:
+  mariadb-data:
