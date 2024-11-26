@@ -36,6 +36,94 @@ main() {
   git add -u
   git commit -m "Format code with PHP_CodeSniffer"
 
+  npm install --save-dev prettier prettier-plugin-organize-imports
+  cat <<'EOS' > .prettierrc.json
+{
+  "plugins": ["prettier-plugin-organize-imports"]
+}
+EOS
+  git add package-lock.json package.json .prettierrc.json
+  git commit -m "Install Prettier"
+
+  npm install --save-dev eslint globals @eslint/js typescript-eslint
+  cat <<'EOS' > eslint.config.js
+import pluginJs from "@eslint/js";
+import globals from "globals";
+import tseslint from "typescript-eslint";
+
+/** @type {import('eslint').Linter.Config[]} */
+export default [
+  {
+    files: ["**/*.{js,mjs,cjs,ts}"],
+  },
+  {
+    languageOptions: { globals: globals.browser },
+  },
+  pluginJs.configs.recommended,
+  ...tseslint.configs.recommended,
+];
+EOS
+  git add package-lock.json package.json eslint.config.js
+  git commit -m "Install ESLint"
+
+  npm install --save-dev stylelint stylelint-config-standard-scss
+  cat <<'EOS' > .stylelintrc.json
+{
+  "extends": "stylelint-config-standard-scss",
+  "rules": {
+    "scss/at-rule-no-unknown": [
+      true,
+      {
+        "ignoreAtRules": [
+          "apply",
+          "layer",
+          "responsive",
+          "screen",
+          "tailwind",
+          "variants"
+        ]
+      }
+    ]
+  }
+}
+EOS
+  git add package-lock.json package.json .stylelintrc.json
+  git commit -m "Install Stylelint"
+
+  jq '.scripts += {
+  "lint": "npm run lint:css && npm run lint:js && npm run lint:php",
+  "lint:css": "stylelint --fix resources/css && prettier --write resources/css",
+  "lint:js": "eslint --fix resources/js && prettier --write resources/js",
+  "lint:php": "./vendor/bin/phpstan analyse && ./vendor/bin/phpcbf"
+}' package.json > temp.json && mv temp.json package.json
+
+  npm install --save-dev lint-staged
+  cat <<'EOS' > .lintstagedrc.js
+export default {
+  "!(*.blade).php": [
+      "./vendor/bin/phpstan analyse --",
+      "./vendor/bin/phpcbf --",
+  ],
+  "*.{css,scss}": [
+      "stylelint --fix --",
+      "prettier --write --",
+  ],
+  "*.{js,mjs,cjs,ts}": [
+      "eslint --fix --",
+      "prettier --write --",
+  ],
+};
+EOS
+  git add package-lock.json package.json .lintstagedrc.js
+
+  npm install --save-dev husky
+  npx husky init
+  cat <<'EOS' > .husky/pre-commit
+npx lint-staged
+EOS
+  git add package-lock.json package.json .husky/pre-commit
+  git commit -m "Install Husky"
+
   generate_dockerfile
   generate_dockerignore
   git add Dockerfile .dockerignore
@@ -85,28 +173,29 @@ EOS
 }
 
 install_php_codesniffer() {
-  composer require --dev "squizlabs/php_codesniffer:^3.7.2"
+  composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+  composer require --dev "squizlabs/php_codesniffer:^3.7.2" "doctrine/coding-standard:^12.0"
   cat <<'EOS' > phpcs.xml
 <?xml version="1.0"?>
-<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="PHP_CodeSniffer" xsi:noNamespaceSchemaLocation="phpcs.xsd">
+<ruleset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="Laravel App" xsi:noNamespaceSchemaLocation="phpcs.xsd">
     <file>.</file>
-
+    <exclude-pattern>*blade.php</exclude-pattern>
     <exclude-pattern>/bootstrap/cache/</exclude-pattern>
     <exclude-pattern>/node_modules/</exclude-pattern>
     <exclude-pattern>/public/</exclude-pattern>
     <exclude-pattern>/storage/</exclude-pattern>
     <exclude-pattern>/vendor/</exclude-pattern>
-
     <arg name="extensions" value="php"/>
     <arg name="basepath" value="."/>
     <arg value="n"/>
     <arg name="colors"/>
     <arg value="p"/>
-
-    <rule ref="PSR12" />
-
+    <rule ref="Doctrine" />
     <rule ref="PSR1.Methods.CamelCapsMethodName">
-        <exclude-pattern>/tests/*</exclude-pattern>
+         <exclude-pattern>/tests/*</exclude-pattern>
+    </rule>
+    <rule ref="Squiz.Arrays.ArrayDeclaration">
+         <exclude name="Squiz.Arrays.ArrayDeclaration.MultiLineNotAllowed" />
     </rule>
 </ruleset>
 EOS
